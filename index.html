@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kirim Pesan ke Bimxyz</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .form-container {
+      background: white;
+      padding: 20px 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      width: 90%;
+      max-width: 500px;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    input[type="text"],
+    textarea,
+    input[type="file"] {
+      width: 100%;
+      margin-bottom: 15px;
+      padding: 12px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 150px;
+    }
+
+    button {
+      width: 100%;
+      background: #4CAF50;
+      color: white;
+      padding: 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #9e9e9e;
+      cursor: not-allowed;
+    }
+
+    button:hover:enabled {
+      background: #45a049;
+    }
+
+    .status {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .status.success {
+      color: #4CAF50;
+    }
+
+    .status.error {
+      color: #f44336;
+    }
+  </style>
+</head>
+<body>
+  <div class="form-container">
+    <h2>Kirim Pesan ke Bimxyz official</h2>
+    <form id="messageForm <input type="text" id="name" placeholder="Nama pengirim" required />
+      <textarea id="message" placeholder="Tulis pesan kamu..." required></textarea>
+      <input type="file" id="file" accept="image/*,video/*" />
+      <button type="submit" id="sendButton">Kirim</button>
+    </form>
+    <div class="status" id="status"></div>
+  </div>
+
+  <script>
+    const BOT_TOKEN = "8453577689:AAFTMXUDZuXL5gGg2wq8AAeojQu27dmoGog";
+    const CHAT_ID = "6629230649";
+
+    const form = document.getElementById("messageForm");
+    const statusBox = document.getElementById("status");
+    const sendButton = document.getElementById("sendButton");
+
+    let userIP = "";
+
+    // Ambil IP address pengirim
+    fetch("https://api.ipify.org?format=json")
+      .then(res => res.json())
+      .then(data => {
+        userIP = data.ip;
+      })
+      .catch(() => {
+        userIP = "IP tidak terdeteksi";
+      });
+
+    // Cek apakah ada jeda spam
+    function checkCooldown() {
+      const lastSent = localStorage.getItem("lastSent");
+      if (lastSent) {
+        const diff = Date.now() - parseInt(lastSent);
+        const cooldown = 5 * 60 * 1000; // 5 menit
+        if (diff < cooldown) {
+          const remaining = Math.ceil((cooldown - diff) / 1000);
+          statusBox.textContent = `⏳ Tunggu ${Math.ceil(remaining / 60)} menit lagi sebelum kirim pesan baru.`;
+          statusBox.className = "status error";
+          sendButton.disabled = true;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Update cooldown status tiap 1 detik
+    setInterval(() => {
+      if (checkCooldown()) {
+        // disable tombol
+      } else {
+        statusBox.textContent = "";
+        sendButton.disabled = false;
+      }
+    }, 1000);
+
+    function formatDate() {
+      const days = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+      const now = new Date();
+      const dayName = days[now.getDay()];
+      const date = now.toLocaleDateString('id-ID');
+      const time = now.toLocaleTimeString('id-ID');
+      return `${dayName}, ${date} ${time}`;
+    }
+
+    form.addEventListener("submit", function(e) {
+      e.preventDefault();
+
+      if (checkCooldown()) return;
+
+      const name = document.getElementById("name").value.trim();
+      const message = document.getElementById("message").value.trim();
+      const fileInput = document.getElementById("file").files[0];
+      const caption = `Dari 👤: ${name}\nIP Address 🌐: ${userIP}\nHari/Tanggal 📅: ${formatDate()}\nChat 💬:\n${message}`;
+
+      if (!name || !message) {
+        statusBox.textContent = "❌ Nama dan pesan wajib diisi!";
+        statusBox.className = "status error";
+        return;
+      }
+
+      statusBox.textContent = "⏳ Mengirim...";
+      statusBox.className = "status";
+      sendButton.disabled = true;
+
+      const finish = (success) => {
+        if (success) {
+          statusBox.textContent = "✅ Pesan terkirim!";
+          statusBox.className = "status success";
+          form.reset();
+          localStorage.setItem("lastSent", Date.now().toString());
+        } else {
+          statusBox.textContent = "❌ Gagal mengirim!";
+          statusBox.className = "status error";
+        }
+        sendButton.disabled = false;
+      };
+
+      if (fileInput) {
+        const formData = new FormData();
+        formData.append("chat_id", CHAT_ID);
+        formData.append("caption", caption);
+
+        let endpoint;
+        if (fileInput.type.startsWith("image/")) {
+          endpoint = "sendPhoto";
+          formData.append("photo", fileInput);
+        } else if (fileInput.type.startsWith("video/")) {
+          endpoint = "sendVideo";
+          formData.append("video", fileInput);
+        }
+
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${endpoint}`, {
+          method: "POST",
+          body: formData
+        })
+          .then(() => finish(true))
+          .catch(() => finish(false));
+      } else {
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: CHAT_ID, text: caption })
+        })
+          .then(() => finish(true))
+          .catch(() => finish(false));
+      }
+    });
+  </script>
+</body>
+  </html>
